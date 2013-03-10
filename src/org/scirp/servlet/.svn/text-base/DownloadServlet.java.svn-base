@@ -1,0 +1,302 @@
+package org.scirp.servlet;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.Random;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.scirp.util.DownLoadUtil;
+
+public class DownloadServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	public void init() throws ServletException {
+
+	}
+
+	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+		this.doPost(request, response);
+	}
+
+	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+		// 获取文件类型
+		String fileType = request.getParameter("fileType");
+		// 获取文件名字
+		String fileName = request.getParameter("fileNames");
+		//获取请求下载的Url
+		String returnUrl = request.getParameter("returnUrl");
+		String[] fileNames = fileName.split(";");
+		List<String[]> list = new ArrayList<String[]>();
+		for (String string : fileNames) {
+			list.add(string.split(","));
+		}
+		String fileRoot = downLoadFile(fileType, list);
+		String path = request.getContextPath();
+		String basePath = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort() + path + "/";
+		//文件存在就到远程下载,文件不存在就到本地下载
+		if (fileRoot == null) {
+			try {
+				returnUrl= URLDecoder.decode(returnUrl, "utf-8");
+			} catch (Exception e) {
+
+			}
+			if(returnUrl!=null&&returnUrl.contains("?")){
+				returnUrl+="&local=true";
+			}else{
+				returnUrl+="local=true";
+			}
+			response.sendRedirect(returnUrl);
+		} else {
+			response.addHeader("Content-Disposition", "attachment;filename="+fileRoot.substring(fileRoot.lastIndexOf("/")+1));
+//			response.(basePath + fileRoot.replace("d:/ijmis-files/", ""));
+			System.out.println("fileRoot:"+fileRoot);
+			request.getRequestDispatcher(fileRoot).forward(request, response);
+		}
+		// response.sendRedirect("http://www.dq.com:8080"+fileRoot.replace("d:/ijmis-files",
+		// ""));
+	}
+
+	/**
+	 * 
+	 * @param fileType 文件种类
+	 * @param fileNames 文件名集合
+	 * @return 文件路径
+	 * @throws IOException
+	 */
+	public String downLoadFile(String fileType, List<String[]> fileNames)  {
+		InputStream in = getClass().getClassLoader().getResourceAsStream("/fileRoot.properties");
+		Properties pro = new Properties();
+		try{
+			pro.load(in);
+			// 下载版权
+			if (fileType.equals("copyright")) {
+				String root = pro.getProperty("copyrightRoot");
+				return noZipDown(fileNames, root);
+	
+			}
+			// 下载email模板
+			else if (fileType.equals("emailTemplate")) {
+				String root = pro.getProperty("emailTemplateRoot");
+				return noZipDown(fileNames, root);
+	
+			}
+			// 下载杂志模板
+			else if (fileType.equals("journalTemplate")) {
+				String root = pro.getProperty("journalTemplateRoot");
+				return noZipDown(fileNames, root);
+	
+			}
+			// 下载评语
+			else if (fileType.equals("paperComment")) {
+				String root = pro.getProperty("paperCommentRoot");
+				return noZipDown(fileNames, root);
+	
+			}
+			// 下载缴费注册信息
+			else if (fileType.equals("registration")) {
+				String root = pro.getProperty("registrationRoot");
+				return noZipDown(fileNames, root);
+	
+			}
+			// 打包下载
+			else if (fileType.equals("temp")) {
+				String root = pro.getProperty("tempRoot");
+				List<String[]> files = new ArrayList<String[]>();
+				String[] s = new String[2];
+				s[0] = isAble(fileNames, pro);
+				files.add(s);
+				return noZipDown(files, root);
+			}
+			// 下载单篇文章
+			else if (fileType.equals("paper")) {
+				String root = pro.getProperty("fileRoot");
+				return noZipDown(fileNames, root);
+			}
+			// 下载单个图片
+			else if (fileType.equals("image")) {
+				String root = pro.getProperty("imageRoot");
+				return noZipDown(fileNames, root);
+			}
+		}catch(Exception e){
+			return null;
+		}
+		return null;
+	}
+
+	/**
+	 *  返回未打包的文件路径名字
+	 * @param fileNames 文件名集合
+	 * @param root
+	 * @return
+	 */
+	private String noZipDown(List<String[]> fileNames, String root) {
+		if (fileNames.size() > 0 && fileNames.get(0)[0] != null && !fileNames.get(0)[0].equals("")) {
+			if (new File(root + fileNames.get(0)[0].toString()).exists()) {
+				System.out.println("root:"+root.substring(root.lastIndexOf("/ijmis-files/")+13));
+				return root.substring(root.lastIndexOf("/ijmis-files/")+13) + fileNames.get(0)[0].toString();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * 打包处理
+	 * 
+	 * @param fileNames
+	 *            需要打包的文件
+	 * @param pro
+	 *            文件存放路径
+	 * @return 打包后的文件名字
+	 * @throws IOException
+	 */
+	public String isAble(List<String[]> fileNames, Properties pro) {
+		try {
+			// 文件目录
+			String fileRoot = pro.getProperty("fileRoot");
+			// 图片目录
+			String imageRoot = pro.getProperty("imageRoot");
+			// 临时目录
+			String tempRoot = pro.getProperty("tempRoot");
+			/**
+			 * 把要下载打包的文件复制到临时文件加下
+			 */
+			for (int i = 0; i < fileNames.size(); i++) {
+				String[] fileName = fileNames.get(i);
+				for (int j = 0; j < fileName.length; j++) {
+					String fileType = fileName[j].substring(fileName[j].lastIndexOf(".") + 1, fileName[j].length());
+					if (fileType.equals("doc") || fileType.equals("docx") || fileType.equals("pdf")) {
+						File originalFile = new File(fileRoot + fileName[j].toString());
+						File target = new File(tempRoot + fileName[j].toString());
+						if (!originalFile.isFile()) {
+							continue;
+						}
+						DownLoadUtil.copy(originalFile, target);
+					} else {
+						File originalFile = new File(imageRoot + fileName[j].toString());
+						File target = new File(tempRoot + fileName[j].toString());
+						if (!originalFile.isFile()) {
+							continue;
+						}
+						DownLoadUtil.copy(originalFile, target);
+					}
+				}
+			}
+			/**
+			 * 最外层包的名字
+			 */
+			String zipsFileName="";
+			/**
+			 * 内层包名字
+			 */
+			String zipFileName = "";
+			
+			/**
+			 * 最外层的zip流
+			 */
+			OutputStream os1 = null;
+			ZipOutputStream zos1 =null;
+			byte[] buf = new byte[8192];
+			int len;
+			/**
+			 * 如果有2组文件以上就把它们一起打zip包,只有1组文件只打一个zip
+			 */
+			if(fileNames.size() > 1){
+				String isAbleName = "";
+				if (fileNames.get(0) != null) {
+					isAbleName = fileNames.get(0)[0].substring(0, fileNames.get(0)[0].indexOf("-"));
+				} else {
+					isAbleName = "files";
+				}
+				int random = new Random().nextInt(10000);
+				if (random <= 999) {
+					random = random + 1000;
+				}
+				 zipsFileName = isAbleName + "_" + DownLoadUtil.getCurrentDateTime("yyyyMMddHHmmss") + random + ".zip";
+				 os1 = new BufferedOutputStream(new FileOutputStream(tempRoot + zipsFileName));
+				 zos1 = new ZipOutputStream(os1);
+			}
+			for (int i = 0; i < fileNames.size(); i++) {
+				
+				if(fileNames.get(i).length>1)
+				{
+					// 文件打包成zip 文件
+					String tempName = "";
+					if (fileNames.get(i) != null) {
+						tempName = fileNames.get(i)[0].substring(0, fileNames.get(i)[0].indexOf("-"));
+					} else {
+						tempName = "files";
+					}
+					//当前这组文件大于2个在打包,只有一个文件就不打包,直接把文件放入最外层zip中
+					//每组zip文件的名字
+					zipFileName = tempName + "_" + DownLoadUtil.getCurrentDateTime("yyyyMMddHHmmss") + ".zip";
+					
+					OutputStream os = new BufferedOutputStream(new FileOutputStream(tempRoot + zipFileName));
+					ZipOutputStream zos = new ZipOutputStream(os);
+					//byte[] buf = new byte[8192];
+					//int len;
+					for (String fileName : fileNames.get(i)) {
+						File file = new File(tempRoot + fileName);
+						if (!file.isFile()) {
+							continue;
+						}
+						ZipEntry ze = new ZipEntry(file.getName());
+						zos.putNextEntry(ze);
+						BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+	
+						while ((len = bis.read(buf)) > 0) {
+							zos.write(buf, 0, len);
+						}
+						zos.closeEntry();
+					}
+					zos.flush();
+					zos.close();
+				}
+				else{			
+					zipFileName=fileNames.get(i)[0];
+				}
+				// 多组文件在打包
+				if (null != zos1) {
+					File file = new File(tempRoot + zipFileName);
+					ZipEntry ze = new ZipEntry(file.getName());
+					zos1.putNextEntry(ze);
+					BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+
+					while ((len = bis.read(buf)) > 0) {
+						zos1.write(buf, 0, len);
+					}
+					zos1.closeEntry();
+				}
+			}
+			if (null != zos1){
+				zos1.flush();
+				zos1.close();
+			}
+			if (fileNames.size() > 1)
+				return zipsFileName;
+			else {
+				return zipFileName;
+			}
+
+		} catch (Exception e) {
+			return null;
+		}
+	}
+}
