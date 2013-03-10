@@ -85,13 +85,13 @@ if (document.getElementById){
     document.write('</style>\n')
     }
 
-    function SwitchMenu(idName,type){
+    function SwitchMenu(idName,type,index){
     if(document.getElementById){
    		var el = document.getElementById(idName);
    	 var ar = document.getElementById("masterdiv").getElementsByTagName("span");
 	$("#"+idName).html("<img align=\"absmiddle\" src=\"./images/loading.gif\"><span>正在加载数据,请稍候……</span>");
 	$("#"+idName).slideDown(1000);
-	var url="get?ip=www.scirp.org&type="+type;
+	var url="get?ip="+$("#ip").val()+"&type="+type+"&index="+index;
 	var result;
 	$.ajax({
 		 type: "get",
@@ -169,7 +169,7 @@ if (document.getElementById){
 						style="font-size: 14px; cursor: pointer; border: 0; width: 95px; height: 37px; background: url(http://su.bdimg.com/static/superpage/img/spis_e3348b0e.png) no-repeat 0 -30px" />
 				</span>
 			</div>
-			
+			<input  type="hidden" value="${ip }" id="ip"/>
 			<div style="float: left; width: 1200px;">
 				<table width="100%" border="0" cellpadding="0" cellspacing="1"
 					bgcolor="#99bbe8" id="table1">
@@ -356,13 +356,13 @@ if (document.getElementById){
 							</div>
 						</td>
 						<td>
-							<div class="title" onClick="SwitchMenu('sub${status.index}','get')">
+							<div class="title" onClick="SwitchMenu('sub${status.index}','get','${server.key }')">
 								GEI
 							</div>
-							<div class="title" onClick="SwitchMenu('sub${status.index}','ping')">
+							<div class="title" onClick="SwitchMenu('sub${status.index}','ping','${server.key }')">
 								PING
 							</div>
-							<div class="title" onClick="SwitchMenu('sub${status.index}','trace')">
+							<div class="title" onClick="SwitchMenu('sub${status.index}','trace','${server.key }')">
 								Trace
 							</div>
 						</td>

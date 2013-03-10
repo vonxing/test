@@ -46,11 +46,15 @@ public class InitServlet extends HttpServlet {
 	public void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		request.setAttribute("serverMap", serverMap);
+		request.setAttribute("ip", request.getParameter("ip"));
 		getServletContext().getRequestDispatcher("/index.jsp").forward(request, response);
 
 	}
 
 	private String ping(String index,String domain) {
+		if(serverMap==null){
+			load();
+		}
 		return new Robot().getContentByApache(serverMap.get(index)+"ping.php?ip=" + domain, "utf-8");
 	}
 
